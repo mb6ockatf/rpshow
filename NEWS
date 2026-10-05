@@ -1,0 +1,15 @@
+rpshow NEWS -- history of user-visible changes.
+
+* Noteworthy changes in release 0.1 (2026-10-05)
+
+** New features
+
+  First release.  rpshow FILE copies FILE over ssh to a Raspberry Pi and
+  shows it in less, in a fullscreen alacritty window on the Pi's screen.
+  A right click closes the window.  Options: --host, --display, --wait,
+  --verbose, --help, --version.
+
+  The remote host needs alacritty 0.13 or later: the window settings are
+  passed as TOML overrides.  If alacritty reports that it ignored one of
+  them, rpshow closes the window and exits with status 1, since such a
+  window may not close on a right click.

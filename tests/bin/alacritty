@@ -1,0 +1,29 @@
+#!/bin/sh
+# alacritty - fake terminal for the rpshow tests: records how it was
+# started instead of opening a window.
+#
+# Copyright (C) 2026 mb6ockatf
+# This file is free software; see COPYING for copying conditions.
+
+dir=$RPSHOW_TEST_DIR
+printf '%s\n' "$@" > "$dir/alacritty.args"
+printf '%s\n' "$DISPLAY" > "$dir/alacritty.display"
+printf '%s\n' "$LESS" > "$dir/alacritty.less"
+for last
+do
+	:
+done
+printf '%s\n' "$last" > "$dir/alacritty.file"
+cp "$last" "$dir/alacritty.content"
+if test -n "${FAKE_ALACRITTY_WARN-}"
+then
+	echo "$FAKE_ALACRITTY_WARN" >&2
+	echo $$ > "$dir/alacritty.pid"
+	exec sleep 30
+fi
+if test -n "${FAKE_ALACRITTY_STATUS-}"
+then
+	echo 'fake alacritty: cannot open display' >&2
+	exit "$FAKE_ALACRITTY_STATUS"
+fi
+exit 0

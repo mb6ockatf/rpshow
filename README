@@ -1,0 +1,129 @@
+rpshow -- show a local file on a Raspberry Pi screen
+====================================================
+
+rpshow copies a file from this machine to a Raspberry Pi over ssh and
+shows it in less, in a fullscreen terminal window on the Pi's own
+monitor.  It is meant for a Pi that has a screen and a mouse but no
+keyboard: the mouse wheel scrolls, and a right click closes the window
+completely (the terminal, less and the remote copy of the file).
+
+    rpshow notes.txt
+    rpshow -w -H otherpi -d :0 report.md
+
+Requirements
+------------
+
+On this machine: a C compiler and ssh, with key-based login to the Pi
+(the default destination is the ssh host "pi"; see ~/.ssh/config).
+
+On the Pi: an X session on the chosen display, alacritty 0.13 or later,
+less, setsid and mktemp; lesspipe is used when present.  The window
+settings are passed as TOML overrides ("-o mouse.bindings=..."), so
+older alacritty releases with YAML configuration do not work.
+
+less options
+------------
+
+less on the Pi gets the options in $RPSHOW_LESS, or else this machine's
+$LESS, so it behaves the way less does here.  Options the Pi's less does
+not know are dropped (it has no keyboard to dismiss the error prompt),
+and so is --mouse, which would take the right click away from the
+terminal.  Run with -v to see what was dropped.
+
+How it works
+------------
+
+rpshow opens FILE, checks that it is a regular file and runs ssh with
+that file as its standard input.  ssh is given one remote command:
+
+    sh -c SCRIPT rpshow NAME DISPLAY WAIT VERBOSE LESS-OPTIONS
+
+SCRIPT is a fixed POSIX shell program built into rpshow; the words after
+it are its positional parameters, each passed in single quotes (a quote
+inside a word becomes '\'').  Nothing from the command line is pasted
+into SCRIPT itself, so file names with spaces, quotes or $(...) cannot
+change what runs on the Pi.  NAME is the base name of FILE, WAIT and
+VERBOSE are 0 or 1.
+
+On the Pi the script:
+
+ 1. stops if alacritty is missing;
+ 2. unsets LC_ALL (ssh forwards the local one) and LESS;
+ 3. makes a directory with mktemp -d under $TMPDIR or /tmp and copies
+    its standard input there under NAME, so lesspipe can see the
+    extension;
+ 4. sets LESSCHARSET=utf-8 and LESSSECURE=1 and loads lesspipe;
+ 5. tries each word of LESS-OPTIONS with the Pi's less and keeps it only
+    if less prints nothing on standard error; --mouse and --MOUSE are
+    always dropped;
+ 6. starts "setsid alacritty --class rpshow" fullscreen and opaque, with
+    a right-click Quit binding, running less on the copy, with its
+    output in a log file in the same directory.  A background subshell
+    that ignores SIGHUP starts it, records its process ID, waits for it
+    and records its exit status; without WAIT it also removes the
+    directory afterwards (five seconds later if the terminal failed,
+    so the log can still be read);
+ 7. waits one second, then looks in the log for the messages alacritty
+    prints when it ignores a setting ("Ignoring invalid CLI option",
+    "Unable to override option", "Config error").  alacritty still
+    opens a window in that case, but it may be neither fullscreen nor
+    closable with a right click, and the Pi has no keyboard.  So the
+    script closes the window, prints the log and exits 1.  This also
+    catches errors in the Pi's own alacritty.toml;
+ 8. with WAIT=1, waits for the terminal, prints the log if it failed,
+    removes the directory and exits with the terminal's status;
+ 9. otherwise, if the terminal has already failed, prints the log and
+    exits with its status, else exits 0.
+
+Tests
+-----
+
+"make check" never contacts a real host.  tests/init.sh points
+RPSHOW_SSH at tests/fake-ssh and puts tests/bin, which holds a fake
+alacritty, first in PATH.  fake-ssh records its arguments and runs the
+remote command locally with sh -c, the way sshd would, so SCRIPT really
+runs and the quoting goes through two shells.  The fake alacritty
+records its arguments, DISPLAY, LESS and a copy of the file it was given
+to show, and exits with $FAKE_ALACRITTY_STATUS if set.  Each test works
+in its own tests/t-XXXXXX directory, used as TMPDIR for the "remote"
+side, so a leftover file there means the copy was not removed.
+
+ - help-version.sh: --help and --version succeed without running ssh.
+ - usage.sh: missing or extra operands, a missing file, a directory, a
+   bad option and an empty host fail without running ssh.
+ - show.sh: awkward file names arrive intact with their base name;
+   host, display and less options are passed; unsupported options and
+   --mouse are dropped; $LESS and $RPSHOW_HOST are used; the detached
+   mode cleans up after itself.
+ - fail.sh: a terminal that fails to start is reported with its log
+   and exit status, with and without -w; a terminal that complains
+   about its settings is closed and reported with status 1; a missing
+   ssh gives 127.
+
+Building
+--------
+
+    autoreconf -i     # only when building from the repository
+    ./configure
+    make
+    make check
+    make install
+
+See INSTALL for generic instructions.  Report bugs to the address
+printed by "rpshow --help".
+
+Copying
+-------
+
+rpshow is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your
+option) any later version.  It is distributed in the hope that it will
+be useful, but WITHOUT ANY WARRANTY; see COPYING for details.  This
+covers every file in the distribution unless the file says otherwise.
+
+Copyright (C) 2026 mb6ockatf
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

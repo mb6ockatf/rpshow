@@ -1,0 +1,23 @@
+#!/bin/sh
+# fake-ssh - stand-in for ssh: runs the remote command locally, as sshd
+# would, and records its arguments in $RPSHOW_TEST_DIR.
+#
+# Copyright (C) 2026 mb6ockatf
+# This file is free software; see COPYING for copying conditions.
+
+: > "$RPSHOW_TEST_DIR/ssh.args"
+for a
+do
+	printf '%s\n' "$a" >> "$RPSHOW_TEST_DIR/ssh.args"
+done
+while test $# -gt 0
+do
+	case $1 in
+	--) shift; break ;;
+	-*) shift ;;
+	*) break ;;
+	esac
+done
+printf '%s\n' "$1" > "$RPSHOW_TEST_DIR/ssh.host"
+shift
+exec sh -c "$*"

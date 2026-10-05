@@ -1,0 +1,15 @@
+2026-10-05  mb6ockatf  <smokenmirror@tutamail.com>
+
+	Initial release 0.1.
+	* configure.ac, Makefile.am: New files; Automake with gnits strictness.
+	* src/rpshow.c: New file.  Copy a file over ssh and show it in less
+	in a fullscreen alacritty window on the remote X display; a right
+	click closes it.  The window settings are TOML overrides, so
+	alacritty 0.13 or later is required; a terminal that reports it
+	ignored one of them is closed and rpshow exits 1.
+	* doc/rpshow.1: New file; manual page.
+	* tests/init.sh, tests/fake-ssh, tests/bin/alacritty: New files;
+	test harness running the remote side locally.
+	* tests/help-version.sh, tests/usage.sh, tests/show.sh, tests/fail.sh:
+	New tests.
+	* README, NEWS, AUTHORS, THANKS, COPYING: New files.

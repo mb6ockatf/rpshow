@@ -1,0 +1,7 @@
+Authors of rpshow.
+
+mb6ockatf <smokenmirror@tutamail.com>
+	Design and implementation.
+
+Claude Opus 5.5 (Anthropic) <noreply@anthropic.com>
+	Implementation, test suite, documentation and Autotools setup.

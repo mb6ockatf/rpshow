@@ -1,0 +1,146 @@
+.\" Copyright (C) 2026 mb6ockatf
+.\" This file is free software; see COPYING for copying conditions.
+.TH RPSHOW 1 2026-10-05 "rpshow 0.1" "User Commands"
+.SH NAME
+rpshow \- show a local file in a fullscreen pager on a Raspberry Pi screen
+.SH SYNOPSIS
+.B rpshow
+.RI [ OPTION ]...\& " FILE"
+.SH DESCRIPTION
+.B rpshow
+copies the local
+.I FILE
+over
+.BR ssh (1)
+to a temporary directory on a remote host and shows it there in
+.BR less (1),
+inside a new fullscreen
+.B alacritty
+window on the host's X display.
+It is meant for a Raspberry Pi with a monitor and a mouse but no keyboard.
+The mouse wheel scrolls.
+A right click closes the window; the pager and the remote copy of
+.I FILE
+go with it.
+Quitting
+.B less
+closes the window too.
+.PP
+The remote copy keeps the base name of
+.IR FILE ,
+so
+.B lesspipe
+on the remote host can pick a filter by its extension.
+.SH OPTIONS
+.TP
+.BI \-H " HOST" "\fR, \fP\-\^\-host=" HOST
+Connect to
+.IR HOST ,
+any destination
+.BR ssh (1)
+accepts.
+The default is
+.B $RPSHOW_HOST
+or else
+.BR pi .
+.TP
+.BI \-d " DISPLAY" "\fR, \fP\-\^\-display=" DISPLAY
+Open the window on X display
+.I DISPLAY
+of the remote host.
+The default is
+.BR :0 .
+.TP
+.BR \-w ", " \-\^\-wait
+Wait until the window is closed, and exit with the terminal's status.
+Without this option
+.B rpshow
+returns about a second after the window opened, or with the terminal's
+error output and status if it failed to start.
+.IP
+Either way, if
+.B alacritty
+reports within that second that it ignored one of its settings or found
+an error in its configuration,
+.B rpshow
+closes the window, prints the terminal's messages and exits with status 1:
+such a window might be neither fullscreen nor closable with a right click.
+.TP
+.BR \-v ", " \-\^\-verbose
+Report the
+.B less
+options that were dropped (see
+.BR ENVIRONMENT ).
+.TP
+.BR \-h ", " \-\^\-help
+Display a usage message and exit.
+.TP
+.BR \-V ", " \-\^\-version
+Display version information and exit.
+.PP
+When
+.B POSIXLY_CORRECT
+is set, options must come before
+.IR FILE .
+.SH ENVIRONMENT
+.TP
+.B RPSHOW_LESS
+Options for the remote
+.BR less ,
+passed to it as its
+.B LESS
+variable.
+If unset or empty,
+.B LESS
+is used, so the remote pager behaves like the local one; if that is
+empty too,
+.BR \-R .
+Options the remote
+.B less
+rejects are dropped, since a keyboardless screen cannot dismiss the
+error prompt, and so is
+.BR \-\^\-mouse ,
+which would keep the right click from reaching the terminal.
+The remote side also sets
+.B LESSCHARSET=utf-8
+and
+.BR LESSSECURE=1 .
+.TP
+.B RPSHOW_HOST
+Default destination for
+.BR \-H .
+.TP
+.B RPSHOW_SSH
+The
+.BR ssh (1)
+program to run, found in
+.B PATH
+if it contains no slash.
+The default is
+.BR ssh .
+.SH EXIT STATUS
+0 on success, 1 for usage errors, unreadable files and a terminal that
+rejected its settings, 126 or 127 if
+the ssh program cannot be run, otherwise the exit status of
+.BR ssh (1),
+which reports that of the remote terminal.
+.SH NOTES
+The window settings are given to
+.B alacritty
+as TOML overrides with
+.BR \-o ,
+such as
+.BR mouse.bindings ,
+so
+.B alacritty
+0.13 or later is required.
+.SH EXAMPLES
+.EX
+rpshow notes.txt
+rpshow \-w \-H otherpi \-d :1 report.md
+.EE
+.SH SEE ALSO
+.BR less (1),
+.BR ssh (1),
+.BR ssh_config (5),
+.BR alacritty (1)
