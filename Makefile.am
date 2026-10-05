@@ -3,11 +3,16 @@
 ACLOCAL_AMFLAGS = -I m4
 
 bin_PROGRAMS = rpshow
-rpshow_SOURCES = src/rpshow.c
+rpshow_SOURCES = src/rpshow.c src/remote.c src/remote.h
+AM_CPPFLAGS = -I$(top_srcdir)/src
 
 dist_man_MANS = doc/rpshow.1
 
+check_PROGRAMS = tests/remote-test
+tests_remote_test_SOURCES = tests/remote-test.c src/remote.c src/remote.h
+
 TESTS = \
+	tests/remote-test \
 	tests/help-version.sh \
 	tests/usage.sh \
 	tests/show.sh \

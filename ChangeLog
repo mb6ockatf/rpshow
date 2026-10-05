@@ -1,5 +1,19 @@
 2026-10-05  mb6ockatf  <smokenmirror@tutamail.com>
 
+	Add unit tests for the remote command quoting.
+	* src/remote.c, src/remote.h: New files, split from src/rpshow.c:
+	remote_script, quoted_length, append_quoted and remote_command.
+	remote_command now returns NULL when memory runs out.
+	* src/rpshow.c: Use them.  Give variables descriptive names.
+	(xmalloc): Remove.
+	* tests/remote-test.c: New unit test.
+	* Makefile.am (rpshow_SOURCES): Add src/remote.c, src/remote.h.
+	(AM_CPPFLAGS, check_PROGRAMS, tests_remote_test_SOURCES): New.
+	(TESTS): Add tests/remote-test.
+	* README (Tests): Describe it.
+
+2026-10-05  mb6ockatf  <smokenmirror@tutamail.com>
+
 	Initial release 0.1.
 	* configure.ac, Makefile.am: New files; Automake with gnits strictness.
 	* src/rpshow.c: New file.  Copy a file over ssh and show it in less

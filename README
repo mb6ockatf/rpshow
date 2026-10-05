@@ -88,6 +88,15 @@ to show, and exits with $FAKE_ALACRITTY_STATUS if set.  Each test works
 in its own tests/t-XXXXXX directory, used as TMPDIR for the "remote"
 side, so a leftover file there means the copy was not removed.
 
+ - remote-test: a C unit test of src/remote.c, the code that builds
+   the remote command.  It quotes awkward strings (single quotes,
+   backslashes, $(...), backquotes, newlines, globs, the empty string,
+   UTF-8 and SCRIPT itself), checks that quoted_length matches what
+   append_quoted writes, and has /bin/sh print each one back to check
+   it arrives unchanged.  It then has /bin/sh split commands from
+   remote_command into words and checks each word: sh, -c, SCRIPT,
+   rpshow and the five arguments.  Exit status 99 means the test itself
+   could not run.
  - help-version.sh: --help and --version succeed without running ssh.
  - usage.sh: missing or extra operands, a missing file, a directory, a
    bad option and an empty host fail without running ssh.

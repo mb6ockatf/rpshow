@@ -20,4 +20,5 @@
 /tests/*.log
 /tests/*.trs
 /tests/t-*/
+/tests/remote-test
 /test-suite.log
