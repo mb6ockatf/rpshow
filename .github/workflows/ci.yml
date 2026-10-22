@@ -1,0 +1,59 @@
+# Build rpshow and run its test suite, including "make distcheck".
+#
+# Copyright (C) 2026 mb6ockatf
+# This file is free software; see COPYING for copying conditions.
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.os }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+        cc: [gcc, clang]
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake clang groff-base make python3-rich
+      - name: Bootstrap
+        run: autoreconf -fi
+      - name: Configure
+        run: ./configure CFLAGS='-O2 -g -Wall -Wextra -Werror'
+      - name: Build
+        run: make -j"$(nproc)"
+      - name: Check
+        run: make -j"$(nproc)" check VERBOSE=1
+      - name: Check the manual page
+        run: |
+          out=$(groff -man -ww -z -Tutf8 doc/rpshow.1 2>&1)
+          test -z "$out" || { printf '%s\n' "$out"; exit 1; }
+      - name: Distcheck
+        if: matrix.cc == 'gcc'
+        run: make -j"$(nproc)" distcheck
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.os }}-${{ matrix.cc }}
+          path: |
+            test-suite.log
+            tests/*.log
+            rpshow-*/_build/sub/test-suite.log
+          if-no-files-found: ignore
