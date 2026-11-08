@@ -1,6 +1,6 @@
 rpshow NEWS -- history of user-visible changes.
 
-* Noteworthy changes in release ?.? (????-??-??) [?]
+* Noteworthy changes in release 0.2 (????-??-??) [?]
 
 ** New features
 
@@ -9,6 +9,19 @@ rpshow NEWS -- history of user-visible changes.
   "python3 -m rich.markdown -c -p FILE", and shown in less -R.
   Without rich the source is shown, with a note.  The new option
   --raw (-r) shows the source on purpose.
+
+  PDF files (.pdf in any case, or any file starting with "%PDF-") are
+  shown fullscreen in zathura on the remote host, recoloured dark with
+  the colours from the local zathurarc; a right click closes them.
+  The new option --light (-l) shows the pages in their own colours,
+  and --raw (-r) shows a PDF as text in less.  Without zathura the PDF
+  is shown as text, with a note.
+
+** Bug fixes
+
+  lesspipe works again on remote hosts whose less knows
+  LESSSECURE_ALLOW: secure mode had turned it off, so compressed files
+  and PDFs were shown as raw bytes.
 
 * Noteworthy changes in release 0.1 (2026-10-05)
 

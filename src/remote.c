@@ -23,9 +23,14 @@
 
 char const remote_script[] =
   "set -f\n"
-  "name=$1 display=$2 wait=$3 verbose=$4 opts=$5 markdown=$6\n"
+  "name=$1 display=$2 wait=$3 verbose=$4 opts=$5 view=$6 zathura=$7\n"
   "unset LC_ALL LESS\n"
-  "if ! command -v alacritty >/dev/null 2>&1; then\n"
+  "if [ \"$view\" = pdf ] && ! command -v zathura >/dev/null 2>&1; then\n"
+  "  echo \"rpshow: $(uname -n): zathura not found;"
+  " showing the PDF as text\" >&2\n"
+  "  view=text\n"
+  "fi\n"
+  "if [ \"$view\" != pdf ] && ! command -v alacritty >/dev/null 2>&1; then\n"
   "  echo \"rpshow: $(uname -n): alacritty: command not found\" >&2\n"
   "  exit 127\n"
   "fi\n"
@@ -33,7 +38,7 @@ char const remote_script[] =
   "case $d in /*) ;; *) d=$PWD/$d ;; esac\n"
   "f=$d/$name\n"
   "if ! cat >\"$f\"; then rm -rf \"$d\"; exit 1; fi\n"
-  "export LESSCHARSET=utf-8 LESSSECURE=1\n"
+  "export LESSCHARSET=utf-8 LESSSECURE=1 LESSSECURE_ALLOW=lessopen\n"
   "if command -v lesspipe >/dev/null 2>&1; then\n"
   "  eval \"$(SHELL=/bin/sh lesspipe)\"\n"
   "fi\n"
@@ -50,27 +55,36 @@ char const remote_script[] =
   "  fi\n"
   "done\n"
   "export LESS=\"${keep# }\" DISPLAY=\"$display\"\n"
-  "view=less\n"
-  "if [ \"$markdown\" = 1 ]; then\n"
-  "  if python3 -c 'import rich.markdown' >/dev/null 2>&1; then\n"
-  "    view=rich\n"
-  "  else\n"
-  "    echo \"rpshow: $(uname -n): python3 with the rich module"
+  "if [ \"$view\" = markdown ] &&"
+  " ! python3 -c 'import rich.markdown' >/dev/null 2>&1; then\n"
+  "  echo \"rpshow: $(uname -n): python3 with the rich module"
   " not found; showing the Markdown source\" >&2\n"
-  "  fi\n"
+  "  view=text\n"
+  "fi\n"
+  "if [ \"$view\" = pdf ]; then\n"
+  "  printf '%s\\n' 'set guioptions \"\"' 'set recolor true'"
+  " 'map [normal] <Button3> quit' 'map [fullscreen] <Button3> quit'"
+  " \"$zathura\" >\"$d/zathurarc\"\n"
   "fi\n"
   "(\n"
   "  trap '' HUP\n"
-  "  if [ \"$view\" = rich ]; then\n"
-  "    set -- sh -c 'PYTHONIOENCODING=utf-8"
+  "  case $view in\n"
+  "  pdf)\n"
+  "    set -- zathura --mode=fullscreen --config-dir=\"$d\""
+  " --data-dir=\"$d\" --cache-dir=\"$d\" \"$f\" ;;\n"
+  "  *)\n"
+  "    if [ \"$view\" = markdown ]; then\n"
+  "      set -- sh -c 'PYTHONIOENCODING=utf-8"
   " python3 -m rich.markdown -c \"$1\" | less -R' rpshow \"$f\"\n"
-  "  else\n"
-  "    set -- less \"$f\"\n"
-  "  fi\n"
-  "  setsid alacritty --class rpshow"
+  "    else\n"
+  "      set -- less \"$f\"\n"
+  "    fi\n"
+  "    set -- alacritty --class rpshow"
   " -o 'window.startup_mode=\"Fullscreen\"' -o window.opacity=1.0"
   " -o 'mouse.bindings=[{mouse=\"Right\",action=\"Quit\"}]'"
-  " -e \"$@\" >\"$d/log\" 2>&1 </dev/null &\n"
+  " -e \"$@\" ;;\n"
+  "  esac\n"
+  "  setsid \"$@\" >\"$d/log\" 2>&1 </dev/null &\n"
   "  echo $! >\"$d/pid\"\n"
   "  wait $!\n"
   "  s=$?\n"
@@ -82,7 +96,11 @@ char const remote_script[] =
   ") >/dev/null 2>&1 </dev/null &\n"
   "watcher=$!\n"
   "sleep 1\n"
-  "if grep -q -e 'Ignoring invalid CLI option' -e 'Unable to override option'"
+  "if [ \"$view\" = pdf ] && [ \"$verbose\" = 1 ]; then\n"
+  "  sed -n 's/^warning: /rpshow: zathura: /p' \"$d/log\" >&2 2>/dev/null\n"
+  "fi\n"
+  "if [ \"$view\" != pdf ] &&"
+  " grep -q -e 'Ignoring invalid CLI option' -e 'Unable to override option'"
   " -e 'Config error' \"$d/log\" 2>/dev/null; then\n"
   "  echo \"rpshow: alacritty rejected its settings; window closed\" >&2\n"
   "  cat \"$d/log\" >&2\n"
@@ -128,31 +146,67 @@ append_quoted (char *cursor, char const *text)
   return cursor;
 }
 
+static int
+has_suffix (char const *name, char const *const *suffixes,
+	    size_t suffix_count)
+{
+  char const *dot = strrchr (name, '.');
+  if (dot == NULL || dot == name || dot[-1] == '/')
+    return 0;
+  for (size_t suffix_index = 0; suffix_index < suffix_count; suffix_index++)
+    if (strcasecmp (dot + 1, suffixes[suffix_index]) == 0)
+      return 1;
+  return 0;
+}
+
 int
 markdown_name (char const *name)
 {
   static char const *const suffixes[] = {
     "md", "markdown", "mdown", "mkd", "mkdn", "mdwn"
   };
-  char const *dot = strrchr (name, '.');
-  if (dot == NULL || dot == name || dot[-1] == '/')
-    return 0;
-  for (size_t suffix_index = 0;
-       suffix_index < sizeof suffixes / sizeof *suffixes; suffix_index++)
-    if (strcasecmp (dot + 1, suffixes[suffix_index]) == 0)
-      return 1;
-  return 0;
+  return has_suffix (name, suffixes, sizeof suffixes / sizeof *suffixes);
+}
+
+int
+pdf_name (char const *name)
+{
+  static char const *const suffixes[] = { "pdf" };
+  return has_suffix (name, suffixes, sizeof suffixes / sizeof *suffixes);
+}
+
+int
+pdf_header (char const *bytes, size_t size)
+{
+  return size >= PDF_MAGIC_LENGTH
+    && memcmp (bytes, PDF_MAGIC, PDF_MAGIC_LENGTH) == 0;
+}
+
+char const *
+view_word (enum view view)
+{
+  switch (view)
+    {
+    case VIEW_MARKDOWN:
+      return "markdown";
+    case VIEW_PDF:
+      return "pdf";
+    case VIEW_TEXT:
+    default:
+      return "text";
+    }
 }
 
 char *
 remote_command (char const *name, char const *display, int wait,
-		int verbose, char const *less_options, int markdown)
+		int verbose, char const *less_options, enum view view,
+		char const *zathura_settings)
 {
   static char const prefix[] = "sh -c ";
   static char const argv0[] = " rpshow";
   char const *args[] = { name, display, wait ? "1" : "0",
-			 verbose ? "1" : "0", less_options,
-			 markdown ? "1" : "0" };
+			 verbose ? "1" : "0", less_options, view_word (view),
+			 zathura_settings };
   size_t length = sizeof prefix + quoted_length (remote_script) + sizeof argv0;
   for (size_t arg_index = 0; arg_index < sizeof args / sizeof *args;
        arg_index++)

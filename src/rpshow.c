@@ -27,6 +27,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "remote.h"
+#include "zathura.h"
 #define DEFAULT_HOST "pi"
 #define DEFAULT_DISPLAY ":0"
 #define DEFAULT_LESS_OPTIONS "-R"
@@ -38,6 +39,7 @@ static struct option const long_options[] = {
   {"display", required_argument, NULL, 'd'},
   {"wait", no_argument, NULL, 'w'},
   {"raw", no_argument, NULL, 'r'},
+  {"light", no_argument, NULL, 'l'},
   {"verbose", no_argument, NULL, 'v'},
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'V'},
@@ -57,15 +59,17 @@ usage (int status)
   fputs ("\
 Show the local FILE in less, in a fullscreen terminal window on the\n\
 screen of a remote host (a Raspberry Pi).  A right click closes it.\n\
-A Markdown FILE is rendered with Python's rich module first.\n\
+A Markdown FILE is rendered with Python's rich module first; a PDF FILE\n\
+is shown in zathura, recoloured dark the way your zathurarc says.\n\
 \n\
   -H, --host=HOST        ssh destination (default: $RPSHOW_HOST, or "
 	 DEFAULT_HOST ")\n\
   -d, --display=DISPLAY  X display on the remote host (default: "
 	 DEFAULT_DISPLAY ")\n\
   -w, --wait             wait until the window is closed\n\
-  -r, --raw              show a Markdown FILE as plain text\n\
-  -v, --verbose          report less options the remote less lacks\n\
+  -r, --raw              show a Markdown or PDF FILE as plain text\n\
+  -l, --light            show a PDF FILE in its own colours\n\
+  -v, --verbose          report dropped less options and zathura warnings\n\
   -h, --help             display this help and exit\n\
   -V, --version          display version information and exit\n\
 \n\
@@ -91,6 +95,61 @@ There is NO WARRANTY, to the extent permitted by law.\n", stdout);
   exit (EXIT_SUCCESS);
 }
 
+static void
+fail_with_errno (char const *what)
+{
+  fprintf (stderr, "%s: %s: %s\n", program_name, what, strerror (errno));
+  exit (EXIT_FAILURE);
+}
+
+static enum view
+file_view (int file_fd, char const *name, int raw, int *pdf)
+{
+  char header[PDF_MAGIC_LENGTH];
+  ssize_t header_size = pread (file_fd, header, sizeof header, 0);
+  *pdf = pdf_name (name)
+    || (header_size > 0 && pdf_header (header, (size_t) header_size));
+  if (raw)
+    return VIEW_TEXT;
+  if (*pdf)
+    return VIEW_PDF;
+  return markdown_name (name) ? VIEW_MARKDOWN : VIEW_TEXT;
+}
+
+static char *
+remote_name (char const *name, int pdf)
+{
+  static char const pdf_suffix[] = ".pdf";
+  size_t name_length = strlen (name);
+  int add_suffix = pdf && !pdf_name (name);
+  char *copy = malloc (name_length + sizeof pdf_suffix);
+  if (copy == NULL)
+    fail_with_errno ("malloc");
+  memcpy (copy, name, name_length);
+  strcpy (copy + name_length, add_suffix ? pdf_suffix : "");
+  return copy;
+}
+
+static char *
+read_zathura_settings (enum view view, int light)
+{
+  if (view != VIEW_PDF)
+    return NULL;
+  char *path = zathura_config_path ();
+  if (path == NULL && errno != ENOENT)
+    fail_with_errno ("malloc");
+  FILE *config = path != NULL ? fopen (path, "r") : NULL;
+  if (config == NULL && path != NULL && errno != ENOENT)
+    fail_with_errno (path);
+  char *settings = zathura_settings (config, light);
+  if (settings == NULL)
+    fail_with_errno (path != NULL ? path : "malloc");
+  if (config != NULL)
+    fclose (config);
+  free (path);
+  return settings;
+}
+
 static char const *
 getenv_nonempty (char const *name)
 {
@@ -103,7 +162,7 @@ main (int argc, char **argv)
 {
   char const *host = getenv_nonempty ("RPSHOW_HOST");
   char const *display = DEFAULT_DISPLAY;
-  int wait = 0, raw = 0, verbose = 0, option;
+  int wait = 0, raw = 0, light = 0, verbose = 0, option;
   if (argc > 0 && argv[0] != NULL && *argv[0] != '\0')
     {
       char const *slash = strrchr (argv[0], '/');
@@ -111,7 +170,7 @@ main (int argc, char **argv)
     }
   if (host == NULL)
     host = DEFAULT_HOST;
-  while ((option = getopt_long (argc, argv, "H:d:wrvhV", long_options, NULL))
+  while ((option = getopt_long (argc, argv, "H:d:wrlvhV", long_options, NULL))
 	 != -1)
     switch (option)
       {
@@ -126,6 +185,9 @@ main (int argc, char **argv)
 	break;
       case 'r':
 	raw = 1;
+	break;
+      case 'l':
+	light = 1;
 	break;
       case 'v':
 	verbose = 1;
@@ -179,8 +241,15 @@ main (int argc, char **argv)
   char const *ssh = getenv_nonempty ("RPSHOW_SSH");
   if (ssh == NULL)
     ssh = "ssh";
-  char *command = remote_command (name, display, wait, verbose, less_options,
-				  !raw && markdown_name (name));
+  int pdf;
+  enum view view = file_view (file_fd, name, raw, &pdf);
+  char *shown_name = remote_name (name, pdf);
+  char *settings = read_zathura_settings (view, light);
+  char *command = remote_command (shown_name, display, wait, verbose,
+				  less_options, view,
+				  settings != NULL ? settings : "");
+  free (settings);
+  free (shown_name);
   if (command == NULL)
     {
       fprintf (stderr, "%s: memory exhausted\n", program_name);

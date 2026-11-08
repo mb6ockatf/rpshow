@@ -1,6 +1,6 @@
 .\" Copyright (C) 2026 mb6ockatf
 .\" This file is free software; see COPYING for copying conditions.
-.TH RPSHOW 1 2026-10-15 "rpshow 0.1" "User Commands"
+.TH RPSHOW 1 2026-11-09 "rpshow 0.2" "User Commands"
 .SH NAME
 rpshow \- show a local file in a fullscreen pager on a Raspberry Pi screen
 .SH SYNOPSIS
@@ -84,6 +84,84 @@ package.
 Use
 .B \-\^\-raw
 to show the source on purpose.
+.SS PDF
+A
+.I FILE
+whose name ends in
+.B .pdf
+(in any case), or whose first bytes are
+.BR %PDF\- ,
+is shown in
+.BR zathura (1)
+instead of
+.BR less ,
+fullscreen and without status or input bar.
+The mouse wheel scrolls and a right click closes the window, as with
+other files.
+A PDF found by its first bytes alone gets
+.B .pdf
+appended to its remote name.
+.PP
+The pages are recoloured dark, the way
+.B zathura
+does with
+.BR "set recolor true" .
+The colours come from the local
+.BR zathurarc :
+.B $XDG_CONFIG_HOME/zathura/zathurarc
+or else
+.BR ~/.config/zathura/zathurarc .
+Only
+.B set
+lines for these options are passed on:
+.BR adjust\-open ,
+.BR default\-bg ,
+.BR default\-fg ,
+.BR recolor ,
+.BR recolor\-darkcolor ,
+.BR recolor\-keephue ,
+.BR recolor\-lightcolor ,
+.BR recolor\-reverse\-video ,
+.BR render\-loading ,
+.B render\-loading\-bg
+and
+.BR render\-loading\-fg ,
+and only with a value made of letters, digits, spaces and
+.BR #(),.%+\- ,
+such as
+.B rgba(0,0,0,1)
+or a quoted
+.BR \(dq#000000\(dq .
+Other lines, mappings and
+.B include
+are ignored.
+So a
+.B set recolor false
+in the local file turns the recolouring off, and without a local
+.B zathurarc
+the PDF is recoloured with
+.BR zathura 's
+default colours.
+.B \-\^\-light
+shows the pages in their own colours.
+.PP
+.B zathura
+gets a configuration, data and cache directory of its own next to the
+remote copy, so the remote host's
+.B zathurarc
+is not read and no history of the PDF is kept there.
+If the remote host has no
+.BR zathura ,
+.B rpshow
+says so on standard error and shows the PDF as text in
+.BR less ,
+the way
+.B \-\^\-raw
+does: through
+.B lesspipe
+and
+.BR pdftotext ,
+when the remote host has them.
 .SH OPTIONS
 .TP
 .BI \-H " HOST" "\fR, \fP\-\^\-host=" HOST
@@ -123,13 +201,32 @@ such a window might be neither fullscreen nor closable with a right click.
 Show a Markdown
 .I FILE
 as it is, like any other file, instead of rendering it (see
-.BR Markdown ).
+.BR Markdown ),
+and a PDF
+.I FILE
+as text in
+.B less
+instead of in
+.B zathura
+(see
+.BR PDF ).
+.TP
+.BR \-l ", " \-\^\-light
+Show a PDF
+.I FILE
+in its own colours, without the dark recolouring (see
+.BR PDF ).
 .TP
 .BR \-v ", " \-\^\-verbose
 Report the
 .B less
 options that were dropped (see
-.BR ENVIRONMENT ).
+.BR ENVIRONMENT ),
+and the warnings
+.B zathura
+printed within a second of starting, such as an option the remote
+.B zathura
+does not know.
 .TP
 .BR \-h ", " \-\^\-help
 Display a usage message and exit.
@@ -161,9 +258,25 @@ error prompt, and so is
 .BR \-\^\-mouse ,
 which would keep the right click from reaching the terminal.
 The remote side also sets
-.B LESSCHARSET=utf-8
+.BR LESSCHARSET=utf-8 ,
+.B LESSSECURE=1
 and
-.BR LESSSECURE=1 .
+.BR LESSSECURE_ALLOW=lessopen ,
+so
+.B lesspipe
+still works in secure mode with a
+.B less
+that knows
+.B LESSSECURE_ALLOW
+(less 710 does; less 551, in Raspberry Pi OS 11, does not).
+.TP
+.B XDG_CONFIG_HOME
+Where the local
+.B zathurarc
+is looked for (see
+.BR PDF ),
+if set to an absolute path; otherwise
+.BR ~/.config .
 .TP
 .B RPSHOW_HOST
 Default destination for
@@ -178,11 +291,14 @@ if it contains no slash.
 The default is
 .BR ssh .
 .SH EXIT STATUS
-0 on success, 1 for usage errors, unreadable files and a terminal that
-rejected its settings, 126 or 127 if
+0 on success, 1 for usage errors, unreadable files (including an
+unreadable local
+.BR zathurarc )
+and a terminal that rejected its settings, 126 or 127 if
 the ssh program cannot be run, otherwise the exit status of
 .BR ssh (1),
-which reports that of the remote terminal.
+which reports that of the remote terminal or
+.BR zathura .
 .SH NOTES
 The window settings are given to
 .B alacritty
@@ -199,14 +315,26 @@ Markdown rendering needs
 with the
 .B rich
 module on the remote host.
+.PP
+Showing PDFs needs
+.B zathura
+0.4.7 or later, with its PDF plugin
+.RB ( zathura\-pdf\-poppler
+on Raspberry Pi OS and Debian), on the remote host.
+.B alacritty
+is not needed for them.
 .SH EXAMPLES
 .EX
 rpshow notes.txt
 rpshow \-w \-H otherpi \-d :1 report.md
 rpshow \-\^\-raw README.md
+rpshow paper.pdf
+rpshow \-\^\-light scan.pdf
 .EE
 .SH SEE ALSO
 .BR less (1),
 .BR ssh (1),
 .BR ssh_config (5),
-.BR alacritty (1)
+.BR alacritty (1),
+.BR zathura (1),
+.BR zathurarc (5)

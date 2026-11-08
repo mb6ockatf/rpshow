@@ -1,0 +1,31 @@
+#!/bin/sh
+# zathura - fake PDF viewer for the rpshow tests: records how it was
+# started and the configuration it was given instead of opening a window.
+#
+# Copyright (C) 2026 mb6ockatf
+# This file is free software; see COPYING for copying conditions.
+
+dir=$RPSHOW_TEST_DIR
+printf '%s\n' "$@" > "$dir/zathura.args"
+printf '%s\n' "$DISPLAY" > "$dir/zathura.display"
+rm -f "$dir/zathura.config"
+for arg
+do
+	case $arg in
+	--config-dir=*) cp "${arg#--config-dir=}/zathurarc" "$dir/zathura.config" ;;
+	esac
+	last=$arg
+done
+printf '%s\n' "$last" > "$dir/zathura.file"
+cp "$last" "$dir/zathura.content"
+if test -n "${FAKE_ZATHURA_WARN-}"
+then
+	echo "$FAKE_ZATHURA_WARN" >&2
+	sleep 2
+fi
+if test -n "${FAKE_ZATHURA_STATUS-}"
+then
+	echo 'fake zathura: cannot open display' >&2
+	exit "$FAKE_ZATHURA_STATUS"
+fi
+exit 0

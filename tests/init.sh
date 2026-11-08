@@ -10,14 +10,15 @@ mkdir -p "$top_builddir/tests" || exit 99
 work=$(mktemp -d "$top_builddir/tests/t-XXXXXX") || exit 99
 trap 'rm -rf "$work"' 0
 
-mkdir "$work/tmp"
+mkdir "$work/tmp" "$work/home"
 RPSHOW_TEST_DIR=$work
 RPSHOW_SSH=$top_srcdir/tests/fake-ssh
 real_path=$PATH
 PATH=$top_srcdir/tests/bin:$PATH
 TMPDIR=$work/tmp
-export RPSHOW_TEST_DIR RPSHOW_SSH PATH TMPDIR
-unset RPSHOW_HOST RPSHOW_LESS LESS
+HOME=$work/home
+export RPSHOW_TEST_DIR RPSHOW_SSH PATH TMPDIR HOME
+unset RPSHOW_HOST RPSHOW_LESS LESS XDG_CONFIG_HOME
 
 command -v setsid >/dev/null 2>&1 || {
 	echo 'setsid not found; skipping' >&2

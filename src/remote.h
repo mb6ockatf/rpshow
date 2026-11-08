@@ -21,7 +21,19 @@
 extern char const remote_script[];
 size_t quoted_length (char const *text);
 char *append_quoted (char *cursor, char const *text);
+enum view
+{
+  VIEW_TEXT,
+  VIEW_MARKDOWN,
+  VIEW_PDF
+};
+#define PDF_MAGIC "%PDF-"
+#define PDF_MAGIC_LENGTH (sizeof PDF_MAGIC - 1)
 int markdown_name (char const *name);
+int pdf_name (char const *name);
+int pdf_header (char const *bytes, size_t size);
+char const *view_word (enum view view);
 char *remote_command (char const *name, char const *display, int wait,
-		      int verbose, char const *less_options, int markdown);
+		      int verbose, char const *less_options, enum view view,
+		      char const *zathura_settings);
 #endif

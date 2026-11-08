@@ -1,3 +1,33 @@
+2026-11-09  mb6ockatf  <smokenmirror@tutamail.com>
+
+	Show PDF files in zathura, recoloured with the local zathurarc.
+	* src/zathura.c, src/zathura.h: New files.
+	(zathura_config_path, zathura_setting, zathura_settings): New
+	functions.
+	* src/remote.h (enum view): New type.
+	* src/remote.c (has_suffix, pdf_name, pdf_header, view_word): New
+	functions.
+	(markdown_name): Use has_suffix.
+	(remote_command): Replace the MARKDOWN argument with VIEW and add
+	ZATHURA_SETTINGS, passed to the script as $6 and $7.
+	(remote_script): For a PDF, write a zathurarc and start zathura
+	fullscreen instead of alacritty; without zathura, say so and show
+	the PDF as text.  Report zathura's warnings with -v.  Set
+	LESSSECURE_ALLOW=lessopen so lesspipe runs in secure mode.
+	* src/rpshow.c (long_options, usage, main): New option --light (-l).
+	(fail_with_errno, file_view, remote_name, read_zathura_settings):
+	New functions.
+	* tests/pdf.sh, tests/bin/zathura: New files.
+	* tests/init.sh: Use an empty HOME and unset XDG_CONFIG_HOME.
+	* tests/remote-test.c: Test pdf_name, pdf_header, view_word,
+	zathura_setting and zathura_settings and the new arguments.
+	* Makefile.am (rpshow_SOURCES, tests_remote_test_SOURCES): Add
+	src/zathura.c and src/zathura.h.
+	(TESTS): Add tests/pdf.sh.
+	(dist_check_SCRIPTS): Add tests/bin/zathura.
+	* doc/rpshow.1, README, NEWS: Document it.
+	* configure.ac (AC_INIT): Version 0.2.
+
 2026-10-15  mb6ockatf  <smokenmirror@tutamail.com>
 
 	Render Markdown files with rich; add CI.

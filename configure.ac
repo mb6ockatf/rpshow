@@ -1,5 +1,5 @@
 AC_PREREQ([2.71])
-AC_INIT([rpshow], [0.1], [smokenmirror@tutamail.com])
+AC_INIT([rpshow], [0.2], [smokenmirror@tutamail.com])
 AC_CONFIG_SRCDIR([src/rpshow.c])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])

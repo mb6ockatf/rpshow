@@ -3,13 +3,15 @@
 ACLOCAL_AMFLAGS = -I m4
 
 bin_PROGRAMS = rpshow
-rpshow_SOURCES = src/rpshow.c src/remote.c src/remote.h
+rpshow_SOURCES = src/rpshow.c src/remote.c src/remote.h src/zathura.c \
+	src/zathura.h
 AM_CPPFLAGS = -I$(top_srcdir)/src
 
 dist_man_MANS = doc/rpshow.1
 
 check_PROGRAMS = tests/remote-test
-tests_remote_test_SOURCES = tests/remote-test.c src/remote.c src/remote.h
+tests_remote_test_SOURCES = tests/remote-test.c src/remote.c src/remote.h \
+	src/zathura.c src/zathura.h
 
 TESTS = \
 	tests/remote-test \
@@ -17,6 +19,7 @@ TESTS = \
 	tests/usage.sh \
 	tests/show.sh \
 	tests/markdown.sh \
+	tests/pdf.sh \
 	tests/fail.sh
 TEST_EXTENSIONS = .sh
 SH_LOG_COMPILER = $(SHELL)
@@ -25,7 +28,7 @@ AM_TESTS_ENVIRONMENT = \
 	export top_srcdir top_builddir;
 
 dist_check_SCRIPTS = $(TESTS) tests/fake-ssh tests/bin/alacritty \
-	tests/bin/python3
+	tests/bin/python3 tests/bin/zathura
 dist_check_DATA = tests/init.sh
 
 clean-local:

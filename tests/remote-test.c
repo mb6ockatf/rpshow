@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "remote.h"
+#include "zathura.h"
 
 static int failures;
 
@@ -83,6 +84,56 @@ static char const *const other_names[] = {
   "notes.",
   "notesmd",
   "md.dir/file",
+};
+
+static char const *const pdf_names[] = {
+  "paper.pdf",
+  "PAPER.PDF",
+  "a.b.Pdf",
+  "with space.pdf",
+  "dir/x.pdf",
+};
+
+static char const *const other_pdf_names[] = {
+  "pdf",
+  ".pdf",
+  "dir/.pdf",
+  "paper.pdf.txt",
+  "paper.pdfx",
+  "paperpdf",
+};
+
+struct setting_case
+{
+  char const *line;
+  char const *expected;
+};
+
+static struct setting_case const setting_cases[] = {
+  {"set recolor true\n", "set recolor \"true\"\n"},
+  {"set recolor-lightcolor       rgba(0,0,0,1)         # bg\n",
+   "set recolor-lightcolor \"rgba(0,0,0,1)\"\n"},
+  {"  set\tdefault-bg \"#000000\"", "set default-bg \"#000000\"\n"},
+  {"set default-fg '#c0caf5' trailing words\n",
+   "set default-fg \"#c0caf5\"\n"},
+  {"set render-loading-bg \"rgba(1, 2, 3, 0.5)\"\r\n",
+   "set render-loading-bg \"rgba(1, 2, 3, 0.5)\"\n"},
+  {"set default-bg #000000\n", NULL},
+  {"# set recolor true\n", NULL},
+  {"set recolor\n", NULL},
+  {"set recolor \"\"\n", NULL},
+  {"set adjust-open width\n", "set adjust-open \"width\"\n"},
+  {"set first-page-column 1:2\n", NULL},
+  {"set selection-clipboard clipboard\n", NULL},
+  {"map <Button3> exec rm\n", NULL},
+  {"include other\n", NULL},
+  {"set default-bg \"$(touch pwned)\"\n", NULL},
+  {"set default-bg \"red\\\"\nmap x quit\"\n", NULL},
+  {"set default-bg \"unterminated\n", NULL},
+  {"set default-bg `id`\n", NULL},
+  {"set default-bg a;b\n", NULL},
+  {"", NULL},
+  {"\n", NULL},
 };
 
 static void *
@@ -175,10 +226,11 @@ check_quoting (char const *text)
 
 static void
 check_command (char const *name, char const *display, int wait,
-	       int verbose, char const *less_options, int markdown)
+	       int verbose, char const *less_options, enum view view,
+	       char const *settings)
 {
   char *command = remote_command (name, display, wait, verbose,
-				  less_options, markdown);
+				  less_options, view, settings);
   if (command == NULL)
     {
       fputs ("remote-test: remote_command returned NULL\n", stderr);
@@ -187,7 +239,7 @@ check_command (char const *name, char const *display, int wait,
   char const *expected_words[] = {
     "sh", "-c", remote_script, "rpshow", name, display,
     wait ? "1" : "0", verbose ? "1" : "0", less_options,
-    markdown ? "1" : "0"
+    view_word (view), settings
   };
   size_t word_count = sizeof expected_words / sizeof *expected_words;
   static char const printf_prefix[] = "printf '%s\\0' ";
@@ -216,6 +268,60 @@ check_command (char const *name, char const *display, int wait,
   free (command);
 }
 
+static void
+check_settings (void)
+{
+  size_t case_count = sizeof setting_cases / sizeof *setting_cases;
+  for (size_t case_index = 0; case_index < case_count; case_index++)
+    {
+      struct setting_case const *test = &setting_cases[case_index];
+      char *setting = zathura_setting (test->line);
+      if (test->expected == NULL && setting != NULL)
+	fail ("zathurarc line passed on", test->line);
+      else if (test->expected != NULL
+	       && (setting == NULL || strcmp (setting, test->expected) != 0))
+	fail ("zathurarc line not passed on as expected", test->line);
+      free (setting);
+    }
+
+  static char const config_text[] =
+    "set recolor true\n"
+    "set window-title-basename \"true\"\n"
+    "set recolor-darkcolor rgba(192,202,245,1) # fg\n"
+    "map <Button1> quit\n";
+  static char const expected[] =
+    "set recolor \"true\"\n"
+    "set recolor-darkcolor \"rgba(192,202,245,1)\"\n";
+  static char const light_expected[] =
+    "set recolor \"true\"\n"
+    "set recolor-darkcolor \"rgba(192,202,245,1)\"\n"
+    "set recolor \"false\"\n";
+  for (int light = 0; light <= 1; light++)
+    {
+      FILE *config = fmemopen ((void *) config_text, sizeof config_text - 1,
+			       "r");
+      if (config == NULL)
+	{
+	  perror ("remote-test: fmemopen");
+	  exit (99);
+	}
+      char *settings = zathura_settings (config, light);
+      fclose (config);
+      if (settings == NULL
+	  || strcmp (settings, light ? light_expected : expected) != 0)
+	fail ("zathura_settings gave the wrong settings", config_text);
+      free (settings);
+    }
+  char *settings = zathura_settings (NULL, 0);
+  if (settings == NULL || settings[0] != '\0')
+    fail ("zathura_settings without a config is not empty", "");
+  free (settings);
+  settings = zathura_settings (NULL, 1);
+  if (settings == NULL || strcmp (settings, "set recolor \"false\"\n") != 0)
+    fail ("zathura_settings without a config ignores --light", "");
+  free (settings);
+}
+
 int
 main (void)
 {
@@ -229,15 +335,21 @@ main (void)
   if (quoted_length ("'") != 6)
     fail ("quoted_length of a lone quote is not 6", "'");
 
-  check_command ("plain.txt", ":0", 0, 0, "-R", 0);
-  check_command ("plain.txt", ":1", 1, 1, "", 0);
-  check_command ("notes.md", ":0", 0, 1, "-R", 1);
+  check_command ("plain.txt", ":0", 0, 0, "-R", VIEW_TEXT, "");
+  check_command ("plain.txt", ":1", 1, 1, "", VIEW_TEXT, "");
+  check_command ("notes.md", ":0", 0, 1, "-R", VIEW_MARKDOWN, "");
+  check_command ("paper.pdf", ":0", 1, 0, "-R", VIEW_PDF,
+		 "set recolor \"true\"\nset default-bg \"#000000\"\n");
   for (size_t text_index = 0; text_index < text_count; text_index++)
     {
       char const *text = awkward_texts[text_index];
       check_command (text, text, text_index % 2, text_index % 3 == 0, text,
-		     text_index % 5 == 0);
+		     (enum view) (text_index % 3), text);
     }
+  if (strcmp (view_word (VIEW_TEXT), "text") != 0
+      || strcmp (view_word (VIEW_MARKDOWN), "markdown") != 0
+      || strcmp (view_word (VIEW_PDF), "pdf") != 0)
+    fail ("view_word gives the wrong word", "");
 
   size_t markdown_count = sizeof markdown_names / sizeof *markdown_names;
   for (size_t name_index = 0; name_index < markdown_count; name_index++)
@@ -247,6 +359,22 @@ main (void)
   for (size_t name_index = 0; name_index < other_count; name_index++)
     if (markdown_name (other_names[name_index]))
       fail ("taken for Markdown", other_names[name_index]);
+
+  size_t pdf_count = sizeof pdf_names / sizeof *pdf_names;
+  for (size_t name_index = 0; name_index < pdf_count; name_index++)
+    if (!pdf_name (pdf_names[name_index]))
+      fail ("not taken for PDF", pdf_names[name_index]);
+  size_t other_pdf_count = sizeof other_pdf_names / sizeof *other_pdf_names;
+  for (size_t name_index = 0; name_index < other_pdf_count; name_index++)
+    if (pdf_name (other_pdf_names[name_index]))
+      fail ("taken for PDF", other_pdf_names[name_index]);
+  if (!pdf_header ("%PDF-1.4\n", 9) || !pdf_header ("%PDF-", 5))
+    fail ("PDF header not recognised", "%PDF-");
+  if (pdf_header ("%PDF", 4) || pdf_header ("%PDF-1.4", 0)
+      || pdf_header ("%!PS-Adobe", 10) || pdf_header (" %PDF-1.4", 9))
+    fail ("taken for a PDF header", "%PDF");
+
+  check_settings ();
 
   if (failures != 0)
     {
