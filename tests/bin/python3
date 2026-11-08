@@ -1,0 +1,9 @@
+#!/bin/sh
+# python3 - fake Python for the rpshow tests: the remote script only asks
+# it whether the rich module can be imported.  FAKE_PYTHON_NO_RICH makes
+# the answer no.
+#
+# Copyright (C) 2026 mb6ockatf
+# This file is free software; see COPYING for copying conditions.
+
+test -z "${FAKE_PYTHON_NO_RICH-}"

@@ -1,5 +1,15 @@
 rpshow NEWS -- history of user-visible changes.
 
+* Noteworthy changes in release ?.? (????-??-??) [?]
+
+** New features
+
+  Markdown files (.md, .markdown, .mdown, .mkd, .mkdn, .mdwn) are
+  rendered with Python's rich module on the remote host, like
+  "python3 -m rich.markdown -c -p FILE", and shown in less -R.
+  Without rich the source is shown, with a note.  The new option
+  --raw (-r) shows the source on purpose.
+
 * Noteworthy changes in release 0.1 (2026-10-05)
 
 ** New features

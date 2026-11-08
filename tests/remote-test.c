@@ -57,6 +57,34 @@ static char const *const awkward_texts[] = {
   "\xc3\xbc\xc3\xb1\xc3\xad",
 };
 
+static char const *const markdown_names[] = {
+  "README.md",
+  "notes.MD",
+  "a.b.markdown",
+  "x.Markdown",
+  "y.mdown",
+  "z.mkd",
+  "z.mkdn",
+  "wiki.mdwn",
+  "with space.md",
+  "it's.md",
+  "dir/sub.md",
+};
+
+static char const *const other_names[] = {
+  "",
+  "md",
+  ".md",
+  "dir/.md",
+  "README",
+  "notes.txt",
+  "notes.md.txt",
+  "notes.mdx",
+  "notes.",
+  "notesmd",
+  "md.dir/file",
+};
+
 static void *
 allocate (size_t size)
 {
@@ -147,10 +175,10 @@ check_quoting (char const *text)
 
 static void
 check_command (char const *name, char const *display, int wait,
-	       int verbose, char const *less_options)
+	       int verbose, char const *less_options, int markdown)
 {
   char *command = remote_command (name, display, wait, verbose,
-				  less_options);
+				  less_options, markdown);
   if (command == NULL)
     {
       fputs ("remote-test: remote_command returned NULL\n", stderr);
@@ -158,7 +186,8 @@ check_command (char const *name, char const *display, int wait,
     }
   char const *expected_words[] = {
     "sh", "-c", remote_script, "rpshow", name, display,
-    wait ? "1" : "0", verbose ? "1" : "0", less_options
+    wait ? "1" : "0", verbose ? "1" : "0", less_options,
+    markdown ? "1" : "0"
   };
   size_t word_count = sizeof expected_words / sizeof *expected_words;
   static char const printf_prefix[] = "printf '%s\\0' ";
@@ -200,13 +229,24 @@ main (void)
   if (quoted_length ("'") != 6)
     fail ("quoted_length of a lone quote is not 6", "'");
 
-  check_command ("plain.txt", ":0", 0, 0, "-R");
-  check_command ("plain.txt", ":1", 1, 1, "");
+  check_command ("plain.txt", ":0", 0, 0, "-R", 0);
+  check_command ("plain.txt", ":1", 1, 1, "", 0);
+  check_command ("notes.md", ":0", 0, 1, "-R", 1);
   for (size_t text_index = 0; text_index < text_count; text_index++)
     {
       char const *text = awkward_texts[text_index];
-      check_command (text, text, text_index % 2, text_index % 3 == 0, text);
+      check_command (text, text, text_index % 2, text_index % 3 == 0, text,
+		     text_index % 5 == 0);
     }
+
+  size_t markdown_count = sizeof markdown_names / sizeof *markdown_names;
+  for (size_t name_index = 0; name_index < markdown_count; name_index++)
+    if (!markdown_name (markdown_names[name_index]))
+      fail ("not taken for Markdown", markdown_names[name_index]);
+  size_t other_count = sizeof other_names / sizeof *other_names;
+  for (size_t name_index = 0; name_index < other_count; name_index++)
+    if (markdown_name (other_names[name_index]))
+      fail ("taken for Markdown", other_names[name_index]);
 
   if (failures != 0)
     {

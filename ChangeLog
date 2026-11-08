@@ -1,3 +1,22 @@
+2026-10-15  mb6ockatf  <smokenmirror@tutamail.com>
+
+	Render Markdown files with rich; add CI.
+	* src/remote.c (markdown_name): New function.
+	(remote_command): New argument MARKDOWN, passed to the script as $6.
+	(remote_script): For Markdown, run python3 -m rich.markdown -c piped
+	into less -R in the window; without the rich module, say so and
+	fall back to less.
+	* src/remote.h: Declare them.
+	* src/rpshow.c (long_options, usage, main): New option --raw (-r).
+	Pass whether FILE is Markdown to remote_command.
+	* tests/markdown.sh, tests/bin/python3: New files.
+	* tests/init.sh (real_path): New variable.
+	* tests/remote-test.c: Test markdown_name and the new argument.
+	* Makefile.am (TESTS): Add tests/markdown.sh.
+	(dist_check_SCRIPTS): Add tests/bin/python3.
+	* .github/workflows/ci.yml: New file.
+	* doc/rpshow.1, README, NEWS: Document it.
+
 2026-10-05  mb6ockatf  <smokenmirror@tutamail.com>
 
 	Add unit tests for the remote command quoting.

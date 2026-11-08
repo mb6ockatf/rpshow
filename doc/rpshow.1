@@ -1,6 +1,6 @@
 .\" Copyright (C) 2026 mb6ockatf
 .\" This file is free software; see COPYING for copying conditions.
-.TH RPSHOW 1 2026-10-05 "rpshow 0.1" "User Commands"
+.TH RPSHOW 1 2026-10-15 "rpshow 0.1" "User Commands"
 .SH NAME
 rpshow \- show a local file in a fullscreen pager on a Raspberry Pi screen
 .SH SYNOPSIS
@@ -31,6 +31,59 @@ The remote copy keeps the base name of
 so
 .B lesspipe
 on the remote host can pick a filter by its extension.
+.SS Markdown
+A
+.I FILE
+whose name ends in
+.BR .md ,
+.BR .markdown ,
+.BR .mdown ,
+.BR .mkd ,
+.B .mkdn
+or
+.B .mdwn
+(in any case) is rendered before it is shown:
+headings, emphasis, lists, tables, quotes, links and code blocks are
+laid out and coloured to fit the window, and
+.B less
+shows the result.
+The rendering is done on the remote host by the
+.B rich
+Python module, as
+.PP
+.EX
+python3 \-m rich.markdown \-c \fIFILE\fP | less \-R
+.EE
+.PP
+run inside the window, so the text is wrapped to the window's width.
+This is what
+.B python3 \-m rich.markdown \-c \-p
+.I FILE
+does in a local terminal.
+.B \-R
+is added to the
+.B less
+options so the colours show, and
+.B PYTHONIOENCODING=utf\-8
+is set so the box and bullet characters survive a remote locale that
+is not UTF\-8.
+Older
+.B rich
+releases render less: version 9.11 (Raspberry Pi OS 11) shows tables
+as their source text.
+.PP
+If the remote
+.B python3
+cannot import
+.BR rich ,
+.B rpshow
+says so on standard error and shows the Markdown source instead.
+On Raspberry Pi OS and Debian the module is in the
+.B python3\-rich
+package.
+Use
+.B \-\^\-raw
+to show the source on purpose.
 .SH OPTIONS
 .TP
 .BI \-H " HOST" "\fR, \fP\-\^\-host=" HOST
@@ -65,6 +118,12 @@ an error in its configuration,
 .B rpshow
 closes the window, prints the terminal's messages and exits with status 1:
 such a window might be neither fullscreen nor closable with a right click.
+.TP
+.BR \-r ", " \-\^\-raw
+Show a Markdown
+.I FILE
+as it is, like any other file, instead of rendering it (see
+.BR Markdown ).
 .TP
 .BR \-v ", " \-\^\-verbose
 Report the
@@ -134,10 +193,17 @@ such as
 so
 .B alacritty
 0.13 or later is required.
+.PP
+Markdown rendering needs
+.B python3
+with the
+.B rich
+module on the remote host.
 .SH EXAMPLES
 .EX
 rpshow notes.txt
 rpshow \-w \-H otherpi \-d :1 report.md
+rpshow \-\^\-raw README.md
 .EE
 .SH SEE ALSO
 .BR less (1),

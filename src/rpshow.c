@@ -37,6 +37,7 @@ static struct option const long_options[] = {
   {"host", required_argument, NULL, 'H'},
   {"display", required_argument, NULL, 'd'},
   {"wait", no_argument, NULL, 'w'},
+  {"raw", no_argument, NULL, 'r'},
   {"verbose", no_argument, NULL, 'v'},
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'V'},
@@ -56,12 +57,14 @@ usage (int status)
   fputs ("\
 Show the local FILE in less, in a fullscreen terminal window on the\n\
 screen of a remote host (a Raspberry Pi).  A right click closes it.\n\
+A Markdown FILE is rendered with Python's rich module first.\n\
 \n\
   -H, --host=HOST        ssh destination (default: $RPSHOW_HOST, or "
 	 DEFAULT_HOST ")\n\
   -d, --display=DISPLAY  X display on the remote host (default: "
 	 DEFAULT_DISPLAY ")\n\
   -w, --wait             wait until the window is closed\n\
+  -r, --raw              show a Markdown FILE as plain text\n\
   -v, --verbose          report less options the remote less lacks\n\
   -h, --help             display this help and exit\n\
   -V, --version          display version information and exit\n\
@@ -100,7 +103,7 @@ main (int argc, char **argv)
 {
   char const *host = getenv_nonempty ("RPSHOW_HOST");
   char const *display = DEFAULT_DISPLAY;
-  int wait = 0, verbose = 0, option;
+  int wait = 0, raw = 0, verbose = 0, option;
   if (argc > 0 && argv[0] != NULL && *argv[0] != '\0')
     {
       char const *slash = strrchr (argv[0], '/');
@@ -108,7 +111,7 @@ main (int argc, char **argv)
     }
   if (host == NULL)
     host = DEFAULT_HOST;
-  while ((option = getopt_long (argc, argv, "H:d:wvhV", long_options, NULL))
+  while ((option = getopt_long (argc, argv, "H:d:wrvhV", long_options, NULL))
 	 != -1)
     switch (option)
       {
@@ -120,6 +123,9 @@ main (int argc, char **argv)
 	break;
       case 'w':
 	wait = 1;
+	break;
+      case 'r':
+	raw = 1;
 	break;
       case 'v':
 	verbose = 1;
@@ -173,7 +179,8 @@ main (int argc, char **argv)
   char const *ssh = getenv_nonempty ("RPSHOW_SSH");
   if (ssh == NULL)
     ssh = "ssh";
-  char *command = remote_command (name, display, wait, verbose, less_options);
+  char *command = remote_command (name, display, wait, verbose, less_options,
+				  !raw && markdown_name (name));
   if (command == NULL)
     {
       fprintf (stderr, "%s: memory exhausted\n", program_name);

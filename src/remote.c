@@ -19,10 +19,11 @@
 #include "remote.h"
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 char const remote_script[] =
   "set -f\n"
-  "name=$1 display=$2 wait=$3 verbose=$4 opts=$5\n"
+  "name=$1 display=$2 wait=$3 verbose=$4 opts=$5 markdown=$6\n"
   "unset LC_ALL LESS\n"
   "if ! command -v alacritty >/dev/null 2>&1; then\n"
   "  echo \"rpshow: $(uname -n): alacritty: command not found\" >&2\n"
@@ -49,12 +50,27 @@ char const remote_script[] =
   "  fi\n"
   "done\n"
   "export LESS=\"${keep# }\" DISPLAY=\"$display\"\n"
+  "view=less\n"
+  "if [ \"$markdown\" = 1 ]; then\n"
+  "  if python3 -c 'import rich.markdown' >/dev/null 2>&1; then\n"
+  "    view=rich\n"
+  "  else\n"
+  "    echo \"rpshow: $(uname -n): python3 with the rich module"
+  " not found; showing the Markdown source\" >&2\n"
+  "  fi\n"
+  "fi\n"
   "(\n"
   "  trap '' HUP\n"
+  "  if [ \"$view\" = rich ]; then\n"
+  "    set -- sh -c 'PYTHONIOENCODING=utf-8"
+  " python3 -m rich.markdown -c \"$1\" | less -R' rpshow \"$f\"\n"
+  "  else\n"
+  "    set -- less \"$f\"\n"
+  "  fi\n"
   "  setsid alacritty --class rpshow"
   " -o 'window.startup_mode=\"Fullscreen\"' -o window.opacity=1.0"
   " -o 'mouse.bindings=[{mouse=\"Right\",action=\"Quit\"}]'"
-  " -e less \"$f\" >\"$d/log\" 2>&1 </dev/null &\n"
+  " -e \"$@\" >\"$d/log\" 2>&1 </dev/null &\n"
   "  echo $! >\"$d/pid\"\n"
   "  wait $!\n"
   "  s=$?\n"
@@ -112,14 +128,31 @@ append_quoted (char *cursor, char const *text)
   return cursor;
 }
 
+int
+markdown_name (char const *name)
+{
+  static char const *const suffixes[] = {
+    "md", "markdown", "mdown", "mkd", "mkdn", "mdwn"
+  };
+  char const *dot = strrchr (name, '.');
+  if (dot == NULL || dot == name || dot[-1] == '/')
+    return 0;
+  for (size_t suffix_index = 0;
+       suffix_index < sizeof suffixes / sizeof *suffixes; suffix_index++)
+    if (strcasecmp (dot + 1, suffixes[suffix_index]) == 0)
+      return 1;
+  return 0;
+}
+
 char *
 remote_command (char const *name, char const *display, int wait,
-		int verbose, char const *less_options)
+		int verbose, char const *less_options, int markdown)
 {
   static char const prefix[] = "sh -c ";
   static char const argv0[] = " rpshow";
   char const *args[] = { name, display, wait ? "1" : "0",
-			 verbose ? "1" : "0", less_options };
+			 verbose ? "1" : "0", less_options,
+			 markdown ? "1" : "0" };
   size_t length = sizeof prefix + quoted_length (remote_script) + sizeof argv0;
   for (size_t arg_index = 0; arg_index < sizeof args / sizeof *args;
        arg_index++)

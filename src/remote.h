@@ -21,6 +21,7 @@
 extern char const remote_script[];
 size_t quoted_length (char const *text);
 char *append_quoted (char *cursor, char const *text);
+int markdown_name (char const *name);
 char *remote_command (char const *name, char const *display, int wait,
-		      int verbose, char const *less_options);
+		      int verbose, char const *less_options, int markdown);
 #endif

@@ -13,6 +13,7 @@ trap 'rm -rf "$work"' 0
 mkdir "$work/tmp"
 RPSHOW_TEST_DIR=$work
 RPSHOW_SSH=$top_srcdir/tests/fake-ssh
+real_path=$PATH
 PATH=$top_srcdir/tests/bin:$PATH
 TMPDIR=$work/tmp
 export RPSHOW_TEST_DIR RPSHOW_SSH PATH TMPDIR

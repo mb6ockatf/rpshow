@@ -10,6 +10,10 @@ completely (the terminal, less and the remote copy of the file).
     rpshow notes.txt
     rpshow -w -H otherpi -d :0 report.md
 
+Markdown files are rendered first, the way the rich module's
+"python3 -m rich.markdown -c -p FILE" shows them in a local terminal;
+see "Markdown" below.
+
 Requirements
 ------------
 
@@ -20,6 +24,30 @@ On the Pi: an X session on the chosen display, alacritty 0.13 or later,
 less, setsid and mktemp; lesspipe is used when present.  The window
 settings are passed as TOML overrides ("-o mouse.bindings=..."), so
 older alacritty releases with YAML configuration do not work.
+Markdown rendering also needs python3 with the rich module
+(python3-rich on Raspberry Pi OS and Debian).
+
+Markdown
+--------
+
+A file whose name ends in .md, .markdown, .mdown, .mkd, .mkdn or .mdwn,
+in any case, is shown rendered: headings, emphasis, lists, tables,
+quotes and highlighted code blocks, coloured and wrapped to the width
+of the window.  The window runs
+
+    PYTHONIOENCODING=utf-8 python3 -m rich.markdown -c FILE | less -R
+
+on the Pi.  This is the same rendering as "python3 -m rich.markdown -c
+-p FILE" (-c forces colour, -p pages the output); rpshow pipes into
+less itself rather than letting rich pick a pager, so the less options
+above still apply, and adds -R so the colours show.  Rendering happens
+inside the window because rich wraps text to the terminal's width,
+which only the Pi knows.  PYTHONIOENCODING makes rich write UTF-8 even
+when the Pi's locale is not UTF-8.  Older rich releases render less:
+9.11, the version in Raspberry Pi OS 11, shows tables as source text.
+
+If the Pi's python3 cannot import rich, rpshow prints a note and shows
+the Markdown source.  --raw (-r) shows the source on purpose.
 
 less options
 ------------
@@ -36,14 +64,15 @@ How it works
 rpshow opens FILE, checks that it is a regular file and runs ssh with
 that file as its standard input.  ssh is given one remote command:
 
-    sh -c SCRIPT rpshow NAME DISPLAY WAIT VERBOSE LESS-OPTIONS
+    sh -c SCRIPT rpshow NAME DISPLAY WAIT VERBOSE LESS-OPTIONS MARKDOWN
 
 SCRIPT is a fixed POSIX shell program built into rpshow; the words after
 it are its positional parameters, each passed in single quotes (a quote
 inside a word becomes '\'').  Nothing from the command line is pasted
 into SCRIPT itself, so file names with spaces, quotes or $(...) cannot
-change what runs on the Pi.  NAME is the base name of FILE, WAIT and
-VERBOSE are 0 or 1.
+change what runs on the Pi.  NAME is the base name of FILE, WAIT,
+VERBOSE and MARKDOWN are 0 or 1.  MARKDOWN is 1 when NAME has a
+Markdown extension and --raw was not given.
 
 On the Pi the script:
 
@@ -56,23 +85,27 @@ On the Pi the script:
  5. tries each word of LESS-OPTIONS with the Pi's less and keeps it only
     if less prints nothing on standard error; --mouse and --MOUSE are
     always dropped;
- 6. starts "setsid alacritty --class rpshow" fullscreen and opaque, with
-    a right-click Quit binding, running less on the copy, with its
-    output in a log file in the same directory.  A background subshell
+ 6. with MARKDOWN=1, checks that python3 can import rich.markdown, and
+    if not prints a note and falls back to plain less;
+ 7. starts "setsid alacritty --class rpshow" fullscreen and opaque, with
+    a right-click Quit binding, running less on the copy (or, for
+    Markdown, sh -c 'PYTHONIOENCODING=utf-8 python3 -m rich.markdown -c
+    "$1" | less -R' with the copy as $1), with its output in a log file
+    in the same directory.  A background subshell
     that ignores SIGHUP starts it, records its process ID, waits for it
     and records its exit status; without WAIT it also removes the
     directory afterwards (five seconds later if the terminal failed,
     so the log can still be read);
- 7. waits one second, then looks in the log for the messages alacritty
+ 8. waits one second, then looks in the log for the messages alacritty
     prints when it ignores a setting ("Ignoring invalid CLI option",
     "Unable to override option", "Config error").  alacritty still
     opens a window in that case, but it may be neither fullscreen nor
     closable with a right click, and the Pi has no keyboard.  So the
     script closes the window, prints the log and exits 1.  This also
     catches errors in the Pi's own alacritty.toml;
- 8. with WAIT=1, waits for the terminal, prints the log if it failed,
+ 9. with WAIT=1, waits for the terminal, prints the log if it failed,
     removes the directory and exits with the terminal's status;
- 9. otherwise, if the terminal has already failed, prints the log and
+10. otherwise, if the terminal has already failed, prints the log and
     exits with its status, else exits 0.
 
 Tests
@@ -80,11 +113,13 @@ Tests
 
 "make check" never contacts a real host.  tests/init.sh points
 RPSHOW_SSH at tests/fake-ssh and puts tests/bin, which holds a fake
-alacritty, first in PATH.  fake-ssh records its arguments and runs the
+alacritty and a fake python3, first in PATH.  fake-ssh records its arguments and runs the
 remote command locally with sh -c, the way sshd would, so SCRIPT really
 runs and the quoting goes through two shells.  The fake alacritty
 records its arguments, DISPLAY, LESS and a copy of the file it was given
-to show, and exits with $FAKE_ALACRITTY_STATUS if set.  Each test works
+to show, and exits with $FAKE_ALACRITTY_STATUS if set.  The fake
+python3 only answers whether rich can be imported: yes, or no when
+$FAKE_PYTHON_NO_RICH is set.  Each test works
 in its own tests/t-XXXXXX directory, used as TMPDIR for the "remote"
 side, so a leftover file there means the copy was not removed.
 
@@ -95,8 +130,9 @@ side, so a leftover file there means the copy was not removed.
    append_quoted writes, and has /bin/sh print each one back to check
    it arrives unchanged.  It then has /bin/sh split commands from
    remote_command into words and checks each word: sh, -c, SCRIPT,
-   rpshow and the five arguments.  Exit status 99 means the test itself
-   could not run.
+   rpshow and the six arguments.  It also checks which names
+   markdown_name takes for Markdown.  Exit status 99 means the test
+   itself could not run.
  - help-version.sh: --help and --version succeed without running ssh.
  - usage.sh: missing or extra operands, a missing file, a directory, a
    bad option and an empty host fail without running ssh.
@@ -104,6 +140,11 @@ side, so a leftover file there means the copy was not removed.
    host, display and less options are passed; unsupported options and
    --mouse are dropped; $LESS and $RPSHOW_HOST are used; the detached
    mode cleans up after itself.
+ - markdown.sh: Markdown files (any case of the extension, awkward
+   names) are run through rich and less -R; with a real python3 that
+   has rich, the recorded window command is run with cat as less and
+   must print coloured, rendered text; --raw, a missing rich and a
+   non-Markdown file give plain less.
  - fail.sh: a terminal that fails to start is reported with its log
    and exit status, with and without -w; a terminal that complains
    about its settings is closed and reported with status 1; a missing
